@@ -8,55 +8,58 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 
 
-contract SuchWowX is ERC721, ERC721URIStorage, Ownable {
+contract SuchMOON is ERC721, ERC721URIStorage, Ownable {
     using SafeMath for uint256;
     using Counters for Counters.Counter;
     Counters.Counter private _tokenSupply;
 
     // Structs to represent our data
-    struct Meme {
-        uint256 publisherTipsAVAX;
-        uint256 creatorTipsAVAX;
-        uint256 contractTipsAVAX;
-        uint256 publisherTipsWOWX;
-        uint256 creatorTipsWOWX;
-        uint256 contractTipsWOWX;
+    struct Post {
+        uint256 publisherTipsETH;
+        uint256 creatorTipsETH;
+        uint256 publisherTipsMOON;
+        uint256 creatorTipsMOON;
         address publisherAddress;
         address creatorAddress;
         string metadataIPFSHash;
     }
 
     struct User {
-        string wowneroAddress;
+        string addressETH;
         string userHandle;
         string metadataIPFSHash;
-        uint256 tippedAVAX;
-        uint256 tippedWOWX;
-        uint256[] memesPublished;
-        uint256[] memesCreated;
+        uint256 tippedETH;
+        uint256 tippedMOON;
+        uint256[] postsPublished;
+        uint256[] postsCreated;
     }
 
     // Data to maintain
-    mapping (uint256 => Meme) public tokenMeme;
+    mapping (uint256 => Post) public tokenPost;
     mapping (address => User) public userProfile;
     mapping (string => uint256) public metadataTokenId;
 
     // Define starting contract state
-    ERC20 wowx;
+    ERC20 MOON;
     address payable _owner;
-    string public contractCreator = "lzamenace.eth";
+    string public contractCreator = "jwinterm.eth";
     string public contractVersion = "v0.1";
-    uint256 public contractTipCutPercent = 5;
-    uint256 public publisherTipCutPercent = 5;
+    uint256 public publisherTipCutPercent = 25;
 
-    constructor(address wowxAddress) ERC721("SuchWowX", "SWX") {
+    uint256 mintPrice;
+
+    constructor() ERC721("SuchMOON", "SMOON") {
         _owner = payable(msg.sender);
-        wowx = ERC20(wowxAddress);
+        MOON = ERC20(0x138fAFa28a05A38f4d2658b12b0971221A7d5728);
     }
 
     /************
     Contract Operations
     ************/
+
+    function setMintPrice(uint256 _price) external onlyOwner {
+        mintPrice = _price;
+    }
 
     // Withdraw contract balance to creator (mnemonic seed address 0)
     function withdraw() public onlyOwner {
@@ -64,15 +67,9 @@ contract SuchWowX is ERC721, ERC721URIStorage, Ownable {
         payable(msg.sender).transfer(balance);
     }
 
-    // Specify new contract tip cut (not to exceed 10%)
-    function setContractTipCut(uint256 percent) public onlyOwner {
-        require(percent <= 10, "Contract tip cut cannot exceed 10%");
-        contractTipCutPercent = percent;
-    }
-
     // Specify new publisher tip cut (not to exceed 10%)
     function setPublisherTipCut(uint256 percent) public onlyOwner {
-        require(percent <= 10, "Publisher tip cut cannot exceed 10%");
+        require(percent <= 100, "Publisher tip cut cannot exceed 100%");
         publisherTipCutPercent = percent;
     }
 
@@ -85,10 +82,10 @@ contract SuchWowX is ERC721, ERC721URIStorage, Ownable {
     User Settings
     ************/
 
-    // Specify new Wownero address for user
-    function setUserWowneroAddress(string memory wowneroAddress) external {
-        require(bytes(wowneroAddress).length > 0, "Wownero address must be provided.");
-        userProfile[msg.sender].wowneroAddress = wowneroAddress;
+    // Specify new ETH address for user
+    function setUserETHAddress(string memory addressETH) external {
+        require(bytes(addressETH).length > 0, "ETH address must be provided.");
+        userProfile[msg.sender].addressETH = addressETH;
     }
 
     // Specify new handle for user
@@ -112,26 +109,27 @@ contract SuchWowX is ERC721, ERC721URIStorage, Ownable {
     function mint(string memory metadataIPFSHash, address creatorAddress) external {
         require(bytes(metadataIPFSHash).length > 0, "Metadata IPFS hash cannot be empty.");
         require(metadataTokenId[metadataIPFSHash] == 0, "That metadata IPFS hash has already been referenced.");
+
+        MOON.transferFrom(msg.sender, address(this), mintPrice);
+
         uint256 tokenId = totalSupply() + 1; // Start at 1
         _safeMint(msg.sender, tokenId);
         _tokenSupply.increment();
         // track metadata IPFS hashes to be unique to each token ID
         metadataTokenId[metadataIPFSHash] = tokenId;
-        // publisher details - track memes published for minter
-        userProfile[msg.sender].memesPublished.push(tokenId);
-        // creator details - track memes created for memer
-        userProfile[creatorAddress].memesCreated.push(tokenId);
-        // track meme details per token ID
-        tokenMeme[tokenId] = Meme({
+        // publisher details - track posts published for minter
+        userProfile[msg.sender].postsPublished.push(tokenId);
+        // creator details - track posts created for postr
+        userProfile[creatorAddress].postsCreated.push(tokenId);
+        // track Post details per token ID
+        tokenPost[tokenId] = Post({
           publisherAddress: msg.sender,
           creatorAddress: creatorAddress,
           metadataIPFSHash: metadataIPFSHash,
-          publisherTipsAVAX: 0,
-          creatorTipsAVAX: 0,
-          contractTipsAVAX: 0,
-          publisherTipsWOWX: 0,
-          creatorTipsWOWX: 0,
-          contractTipsWOWX: 0
+          publisherTipsETH: 0,
+          creatorTipsETH: 0,
+          publisherTipsMOON: 0,
+          creatorTipsMOON: 0
         });
     }
 
@@ -139,45 +137,39 @@ contract SuchWowX is ERC721, ERC721URIStorage, Ownable {
     Tipping
     ************/
 
-    // Tip a token and it's creator with AVAX
-    function tipAVAX(uint256 tokenId, uint256 amount) public payable {
+    // Tip a token and it's creator with ETH
+    function tipETH(uint256 tokenId, uint256 amount) public payable {
         require(tokenId <= totalSupply(), "Cannot tip non-existent token.");
         // Calculate tip amounts based upon stored cut percentages
         uint256 hundo = 100;
-        uint256 contractTipAmount = amount.div(hundo.div(contractTipCutPercent));
         uint256 publisherTipAmount = amount.div(hundo.div(publisherTipCutPercent));
-        uint256 creatorTipAmount = amount.sub(contractTipAmount.add(publisherTipAmount));
+        uint256 creatorTipAmount = amount.sub(publisherTipAmount);
         // Send transactions
-        payable(address(tokenMeme[tokenId].creatorAddress)).transfer(creatorTipAmount);
-        payable(address(tokenMeme[tokenId].publisherAddress)).transfer(publisherTipAmount);
-        payable(address(_owner)).transfer(contractTipAmount);
+        payable(address(tokenPost[tokenId].creatorAddress)).transfer(creatorTipAmount);
+        payable(address(tokenPost[tokenId].publisherAddress)).transfer(publisherTipAmount);
         // Store tip amounts for sender and recipients to the chain
-        userProfile[msg.sender].tippedAVAX = userProfile[msg.sender].tippedAVAX.add(amount);
-        tokenMeme[tokenId].creatorTipsAVAX = tokenMeme[tokenId].creatorTipsAVAX.add(creatorTipAmount);
-        tokenMeme[tokenId].publisherTipsAVAX = tokenMeme[tokenId].publisherTipsAVAX.add(publisherTipAmount);
-        tokenMeme[tokenId].contractTipsAVAX = tokenMeme[tokenId].contractTipsAVAX.add(contractTipAmount);
+        userProfile[msg.sender].tippedETH = userProfile[msg.sender].tippedETH.add(amount);
+        tokenPost[tokenId].creatorTipsETH = tokenPost[tokenId].creatorTipsETH.add(creatorTipAmount);
+        tokenPost[tokenId].publisherTipsETH = tokenPost[tokenId].publisherTipsETH.add(publisherTipAmount);
     }
 
-    // Tip a token and it's creator with WOWX
-    function tipWOWX(uint256 tokenId, uint256 amount) public payable {
+    // Tip a token and it's creator with MOON
+    function tipMOON(uint256 tokenId, uint256 amount) public payable {
         require(tokenId <= totalSupply(), "Cannot tip non-existent token.");
-        // Ensure proper allowance for contract to send WOWX on user behalf
-        uint256 allowance = wowx.allowance(msg.sender, address(this));
-        require(allowance >= amount, "WOWX token allowance not high enough, must approve additional token transfers first.");
+        // Ensure proper allowance for contract to send MOON on user behalf
+        uint256 allowance = MOON.allowance(msg.sender, address(this));
+        require(allowance >= amount, "MOON token allowance not high enough, must approve additional token transfers first.");
         // Calculate tip amounts based upon stored cut percentages
         uint256 hundo = 100;
-        uint256 contractTipAmount = amount.div(hundo.div(contractTipCutPercent));
         uint256 publisherTipAmount = amount.div(hundo.div(publisherTipCutPercent));
-        uint256 creatorTipAmount = amount.sub(contractTipAmount.add(publisherTipAmount));
+        uint256 creatorTipAmount = amount.sub(publisherTipAmount);
         // Send transactions
-        wowx.transferFrom(msg.sender, address(tokenMeme[tokenId].creatorAddress), creatorTipAmount);
-        wowx.transferFrom(msg.sender, address(tokenMeme[tokenId].publisherAddress), publisherTipAmount);
-        wowx.transferFrom(msg.sender, address(_owner), contractTipAmount);
+        MOON.transferFrom(msg.sender, address(tokenPost[tokenId].creatorAddress), creatorTipAmount);
+        MOON.transferFrom(msg.sender, address(tokenPost[tokenId].publisherAddress), publisherTipAmount);
         // Store tip amounts for sender and recipients to the chain
-        userProfile[msg.sender].tippedWOWX = userProfile[msg.sender].tippedWOWX.add(amount);
-        tokenMeme[tokenId].creatorTipsWOWX = tokenMeme[tokenId].creatorTipsWOWX.add(creatorTipAmount);
-        tokenMeme[tokenId].publisherTipsWOWX = tokenMeme[tokenId].publisherTipsWOWX.add(publisherTipAmount);
-        tokenMeme[tokenId].contractTipsWOWX = tokenMeme[tokenId].contractTipsWOWX.add(contractTipAmount);
+        userProfile[msg.sender].tippedMOON = userProfile[msg.sender].tippedMOON.add(amount);
+        tokenPost[tokenId].creatorTipsMOON = tokenPost[tokenId].creatorTipsMOON.add(creatorTipAmount);
+        tokenPost[tokenId].publisherTipsMOON = tokenPost[tokenId].publisherTipsMOON.add(publisherTipAmount);
     }
 
     /************
@@ -191,7 +183,7 @@ contract SuchWowX is ERC721, ERC721URIStorage, Ownable {
         returns (string memory)
     {
         // Each token should return a unique IPFS hash
-        return string(abi.encodePacked("ipfs://", tokenMeme[tokenId].metadataIPFSHash));
+        return string(abi.encodePacked("ipfs://", tokenPost[tokenId].metadataIPFSHash));
     }
 
     function _burn(uint256 tokenId)
