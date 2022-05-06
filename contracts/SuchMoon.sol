@@ -110,7 +110,7 @@ contract SuchMOON is ERC721, ERC721URIStorage, Ownable {
         require(bytes(metadataIPFSHash).length > 0, "Metadata IPFS hash cannot be empty.");
         require(metadataTokenId[metadataIPFSHash] == 0, "That metadata IPFS hash has already been referenced.");
 
-        MOON.transferFrom(msg.sender, address(this), mintPrice);
+        MOON.transferFrom(msg.sender, address(0xdead), mintPrice);
 
         uint256 tokenId = totalSupply() + 1; // Start at 1
         _safeMint(msg.sender, tokenId);
@@ -138,8 +138,9 @@ contract SuchMOON is ERC721, ERC721URIStorage, Ownable {
     ************/
 
     // Tip a token and it's creator with ETH
-    function tipETH(uint256 tokenId, uint256 amount) public payable {
+    function tipETH(uint256 tokenId) external payable {
         require(tokenId <= totalSupply(), "Cannot tip non-existent token.");
+        uint256 amount = msg.value;
         // Calculate tip amounts based upon stored cut percentages
         uint256 hundo = 100;
         uint256 publisherTipAmount = amount.div(hundo.div(publisherTipCutPercent));
@@ -154,7 +155,7 @@ contract SuchMOON is ERC721, ERC721URIStorage, Ownable {
     }
 
     // Tip a token and it's creator with MOON
-    function tipMOON(uint256 tokenId, uint256 amount) public payable {
+    function tipMOON(uint256 tokenId, uint256 amount) external {
         require(tokenId <= totalSupply(), "Cannot tip non-existent token.");
         // Ensure proper allowance for contract to send MOON on user behalf
         uint256 allowance = MOON.allowance(msg.sender, address(this));
