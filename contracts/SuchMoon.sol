@@ -112,7 +112,7 @@ contract SuchMOON is ERC721, ERC721URIStorage, Ownable {
         require(metadataTokenId[metadataIPFSHash] == 0, "That metadata IPFS hash has already been referenced.");
         require(postStatus[postURL] == false, "This post already minted");
 
-        postStatus[postStatus] = true;
+        postStatus[postURL] = true;
         MOON.transferFrom(msg.sender, address(0xdead), mintPrice);
 
         uint256 tokenId = totalSupply() + 1; // Start at 1
