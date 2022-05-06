@@ -38,6 +38,7 @@ contract SuchMOON is ERC721, ERC721URIStorage, Ownable {
     mapping (uint256 => Post) public tokenPost;
     mapping (address => User) public userProfile;
     mapping (string => uint256) public metadataTokenId;
+    mapping (string => bool) public postStatus;
 
     // Define starting contract state
     ERC20 MOON;
@@ -106,10 +107,12 @@ contract SuchMOON is ERC721, ERC721URIStorage, Ownable {
 
 
     // Mint a new token with a specific metadata hash location
-    function mint(string memory metadataIPFSHash, address creatorAddress) external {
+    function mint(string memory metadataIPFSHash, string memory postURL, address creatorAddress) external {
         require(bytes(metadataIPFSHash).length > 0, "Metadata IPFS hash cannot be empty.");
         require(metadataTokenId[metadataIPFSHash] == 0, "That metadata IPFS hash has already been referenced.");
+        require(postStatus[postURL] == false, "This post already minted");
 
+        postStatus[postStatus] = true;
         MOON.transferFrom(msg.sender, address(0xdead), mintPrice);
 
         uint256 tokenId = totalSupply() + 1; // Start at 1
